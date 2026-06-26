@@ -128,7 +128,7 @@ function generateProofCardSvg(data: {
   const verified = data.total_commits > 0
   const badgeColor = verified ? "#00D4AA" : "#64748B"
   const badgeText = verified ? "Verified by GitHub API" : "Manual build"
-  const badgeIcon = verified ? "M9 12l2 2l4-4" : "M12 8v4m0 4h.01"
+  const initial = (data.github_username !== "N/A" ? data.github_username[0] : data.userUsername?.[0] || data.userName?.[0] || "B").toUpperCase()
 
   return `<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -140,7 +140,8 @@ function generateProofCardSvg(data: {
   <rect width="1200" height="630" fill="url(#bg)"/>
   <rect x="40" y="40" width="1120" height="550" rx="16" fill="none" stroke="#1E1E2E" stroke-width="1"/>
 
-  <text x="80" y="95" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#00D4AA">SHIP</text>
+  <rect x="80" y="72" width="14" height="14" rx="3" fill="#00D4AA"/>
+  <text x="106" y="86" font-family="system-ui, sans-serif" font-size="26" font-weight="800" fill="#00D4AA" letter-spacing="2">SHIP</text>
 
   <text x="80" y="170" font-family="system-ui, sans-serif" font-size="48" font-weight="700" fill="#F8FAFC">PROOF OF BUILD</text>
 
@@ -149,19 +150,21 @@ function generateProofCardSvg(data: {
 
   <line x1="80" y1="300" x2="1120" y2="300" stroke="#1E1E2E" stroke-width="1"/>
 
-  <text x="80" y="345" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="${badgeColor}">${badgeIcon === "M9 12l2 2l4-4" ? "\\2713" : "\\2014"} VERIFIED ACTIVITY</text>
+  <text x="80" y="345" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="${badgeColor}">${verified ? "\\u2713" : "\\u2014"} VERIFIED ACTIVITY</text>
   <text x="80" y="385" font-family="system-ui, sans-serif" font-size="20" fill="#CBD5E1">
-    <tspan x="80" dy="0">${data.total_commits > 0 ? "\\2022 " + data.total_commits + " commit" + (data.total_commits !== 1 ? "s" : "") + " across " + data.repo_count + " " + (data.repo_count === 1 ? "repo" : "repos") : "\\2022 No GitHub commits linked"}</tspan>
-    <tspan x="80" dy="30">${data.languages !== "N/A" && data.languages ? "\\2022 Languages: " + data.languages : ""}</tspan>
-    <tspan x="80" dy="30">${data.top_repo !== "N/A" ? "\\2022 Most active: " + data.top_repo : ""}</tspan>
+    <tspan x="80" dy="0">${data.total_commits > 0 ? "\\u2022 " + data.total_commits + " commit" + (data.total_commits !== 1 ? "s" : "") + " across " + data.repo_count + " " + (data.repo_count === 1 ? "repo" : "repos") : "\\u2022 No GitHub commits linked"}</tspan>
+    <tspan x="80" dy="30">${data.languages !== "N/A" && data.languages ? "\\u2022 Languages: " + data.languages : ""}</tspan>
+    <tspan x="80" dy="30">${data.top_repo !== "N/A" ? "\\u2022 Most active: " + data.top_repo : ""}</tspan>
   </text>
 
-  <image x="80" y="470" width="56" height="56" rx="28" href="${escapeXml(data.userAvatar || `https://github.com/${data.github_username}.png`)}"/>
-  <text x="150" y="492" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#F8FAFC">@${escapeXml(data.github_username !== "N/A" ? data.github_username : data.userUsername || "builder")}</text>
+  <circle cx="108" cy="498" r="28" fill="#00D4AA" opacity="0.2"/>
+  <circle cx="108" cy="498" r="28" fill="none" stroke="#00D4AA" stroke-width="1.5"/>
+  <text x="108" y="506" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#00D4AA" text-anchor="middle">${escapeXml(initial)}</text>
+  <text x="150" y="492" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#F8FAFC">${escapeXml(data.github_username !== "N/A" ? "@" + data.github_username : data.userUsername || "builder")}</text>
   <text x="150" y="516" font-family="system-ui, sans-serif" font-size="16" fill="#94A3B8">ship.so/u/${escapeXml(data.userUsername)}</text>
 
   <rect x="80" y="550" width="200" height="28" rx="14" fill="${badgeColor}" opacity="0.15"/>
-  <text x="180" y="569" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="${badgeColor}" text-anchor="middle">${verified ? "\\2713" : "\\2014"} ${badgeText}</text>
+  <text x="180" y="569" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="${badgeColor}" text-anchor="middle">${verified ? "\\u2713" : "\\u2014"} ${badgeText}</text>
 </svg>`
 }
 

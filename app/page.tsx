@@ -6,8 +6,8 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-          <Link href="/" className="text-lg font-semibold tracking-tight text-foreground">
-            Ship
+          <Link href="/" className="flex items-center gap-2">
+            <img src="/logo.svg" alt="Ship" className="h-6 w-auto" />
           </Link>
           <nav className="hidden md:flex items-center gap-8">
             <Link href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">How it works</Link>
@@ -82,6 +82,28 @@ export default function LandingPage() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border bg-card/50 py-24">
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="mx-auto max-w-3xl text-center mb-12">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              Your proof card
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Every shipped build generates a shareable proof card. Verified by GitHub. Frozen forever.
+            </p>
+          </div>
+          <div className="mx-auto max-w-4xl rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-ship/5">
+            <div className="relative aspect-[1200/630] w-full overflow-hidden rounded-xl">
+              <img
+                src="/output/sample-card.svg"
+                alt="Sample Ship proof card"
+                className="h-full w-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </section>

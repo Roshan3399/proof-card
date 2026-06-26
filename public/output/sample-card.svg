@@ -1,0 +1,36 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0A0A0F"/>
+      <stop offset="100%" style="stop-color:#0F0F1A"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="40" y="40" width="1120" height="550" rx="16" fill="none" stroke="#1E1E2E" stroke-width="1"/>
+
+  <rect x="80" y="72" width="14" height="14" rx="3" fill="#00D4AA"/>
+  <text x="106" y="86" font-family="system-ui, sans-serif" font-size="26" font-weight="800" fill="#00D4AA" letter-spacing="2">SHIP</text>
+
+  <text x="80" y="170" font-family="system-ui, sans-serif" font-size="48" font-weight="700" fill="#F8FAFC">PROOF OF BUILD</text>
+
+  <text x="80" y="225" font-family="system-ui, sans-serif" font-size="32" fill="#94A3B8">Ship — Build Tracker for Teens</text>
+  <text x="80" y="260" font-family="system-ui, sans-serif" font-size="20" fill="#64748B">Built over 14 days</text>
+
+  <line x1="80" y1="300" x2="1120" y2="300" stroke="#1E1E2E" stroke-width="1"/>
+
+  <text x="80" y="345" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#00D4AA">✓ VERIFIED ACTIVITY</text>
+  <text x="80" y="385" font-family="system-ui, sans-serif" font-size="20" fill="#CBD5E1">
+    <tspan x="80" dy="0">• 47 commits across 3 repos</tspan>
+    <tspan x="80" dy="30">• Languages: TypeScript, CSS, JavaScript</tspan>
+    <tspan x="80" dy="30">• Most active: roshanbuild/ship</tspan>
+  </text>
+
+  <circle cx="108" cy="498" r="28" fill="#00D4AA" opacity="0.2"/>
+  <circle cx="108" cy="498" r="28" fill="none" stroke="#00D4AA" stroke-width="1.5"/>
+  <text x="108" y="506" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#00D4AA" text-anchor="middle">R</text>
+  <text x="150" y="492" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#F8FAFC">@Roshan3399</text>
+  <text x="150" y="516" font-family="system-ui, sans-serif" font-size="16" fill="#94A3B8">ship.so/u/roshan</text>
+
+  <rect x="80" y="550" width="200" height="28" rx="14" fill="#00D4AA" opacity="0.15"/>
+  <text x="180" y="569" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#00D4AA" text-anchor="middle">✓ Verified by GitHub API</text>
+</svg>

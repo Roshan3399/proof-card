@@ -48,14 +48,26 @@ export default function NewBuildPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push("/login"); setLoading(false); return }
 
-    const { count } = await supabase
+    const { count: activeCount } = await supabase
       .from("builds")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
       .not("status", "eq", "shipped")
 
-    if (count && count >= 3) {
+    if (activeCount && activeCount >= 3) {
       setErrors({ form: "Ship or archive a Build before starting a new one. Maximum 3 active builds." })
+      setLoading(false)
+      return
+    }
+
+    const { count: shippedCount } = await supabase
+      .from("builds")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "shipped")
+
+    if (!shippedCount || shippedCount < 2) {
+      setErrors({ form: `Ship ${2 - (shippedCount ?? 0)} more build${2 - (shippedCount ?? 0) !== 1 ? "s" : ""} before starting a new one. You need at least 2 shipped builds to unlock new projects.` })
       setLoading(false)
       return
     }
