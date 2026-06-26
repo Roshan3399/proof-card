@@ -1,8 +1,8 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Plus, Flame, Calendar, Check, ShipIcon, AlertTriangle } from "lucide-react"
 import { DashboardSkeleton } from "@/components/skeleton"
@@ -10,8 +10,9 @@ import { Nav } from "@/components/nav"
 import { calculateStreak } from "@/lib/streak"
 import type { Build, Log, Season, Profile } from "@/types"
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
@@ -32,39 +33,49 @@ export default function DashboardPage() {
   const [shipping, setShipping] = useState(false)
   const [showShipAnimation, setShowShipAnimation] = useState(false)
 
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [githubUsername, setGithubUsername] = useState("")
+  const [githubActivity, setGithubActivity] = useState<{
+    commits: { sha: string; message: string; url: string; repo: string }[]
+    repos: string[]
+    languages: string[]
+    total_commits: number
+  } | null>(null)
+  const [githubBanner, setGithubBanner] = useState<string | null>(null)
+
+  useEffect(() => {
+    const gb = searchParams.get("github")
+    if (gb === "connected") setGithubBanner("connected")
+    else if (gb === "error") setGithubBanner("error")
+  }, [searchParams])
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/login"); return }
       setUser(user)
 
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single()
-      if (p) setProfile(p as unknown as Profile)
+      const promises = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("seasons").select("*").eq("is_active", true).single(),
+        supabase.from("builds").select("*").eq("user_id", user.id).not("status", "eq", "shipped").order("created_at", { ascending: false }).limit(1),
+        supabase.from("builds").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("github_connections").select("github_username").eq("user_id", user.id).maybeSingle(),
+      ])
 
-      const { data: activeSeason } = await supabase
-        .from("seasons")
-        .select("*")
-        .eq("is_active", true)
-        .single()
+      const p = promises[0].data
+      const activeSeason = promises[1].data
+      const builds = promises[2].data
+      const allUserBuilds = promises[3].data
+      const githubConn = promises[4].data
+
+      if (p) setProfile(p as unknown as Profile)
       if (activeSeason) setSeason(activeSeason)
 
-      const { data: builds } = await supabase
-        .from("builds")
-        .select("*")
-        .eq("user_id", user.id)
-        .not("status", "eq", "shipped")
-        .order("created_at", { ascending: false })
-        .limit(1)
-
-      const { data: allUserBuilds } = await supabase
-        .from("builds")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
+      if (githubConn) {
+        setGithubConnected(true)
+        setGithubUsername((githubConn as any).github_username)
+      }
 
       const buildList = (allUserBuilds ?? []) as unknown as Build[]
       setPastBuilds(buildList.filter((b) => b.status === "shipped"))
@@ -94,6 +105,10 @@ export default function DashboardPage() {
           if (yesterdayLog) setYesterdaysLog(yesterdayLog)
           setStreak(calculateStreak(logList))
         }
+      }
+
+      if (githubConn && activeBuild) {
+        fetchGithubActivity()
       }
 
       const { data: cohortData } = await supabase
@@ -130,6 +145,17 @@ export default function DashboardPage() {
     load()
   }, [])
 
+  async function fetchGithubActivity() {
+    try {
+      const today = new Date().toISOString().split("T")[0]
+      const res = await fetch(`/api/github/activity?date=${today}`)
+      if (res.ok) {
+        const data = await res.json()
+        setGithubActivity(data)
+      }
+    } catch {}
+  }
+
   async function handleLogProgress() {
     if (!activeBuild || loggedToday || !todaysGoal.trim()) return
     if (todaysGoal.trim().length < 10) {
@@ -138,23 +164,26 @@ export default function DashboardPage() {
     }
     setSaving(true)
     setLogError(null)
-    const { error } = await supabase.from("logs").insert({
+
+    const logPayload: Record<string, any> = {
       build_id: activeBuild.id,
       content: todaysGoal,
-    })
+    }
+
+    if (githubActivity && githubActivity.total_commits > 0) {
+      logPayload.github_verified = true
+      logPayload.github_commits_count = githubActivity.total_commits
+      logPayload.github_repos_touched = githubActivity.repos
+      logPayload.github_languages = githubActivity.languages
+    }
+
+    const { data, error } = await supabase.from("logs").insert(logPayload).select().single()
     if (error) {
       setLogError(error.message)
       setSaving(false)
       return
     }
-    const newLog: Log = {
-      id: "",
-      build_id: activeBuild.id,
-      log_date: new Date().toISOString().split("T")[0],
-      content: todaysGoal,
-      image_url: null,
-      created_at: new Date().toISOString(),
-    }
+    const newLog = data as unknown as Log
     setAllLogs((prev) => [newLog, ...prev])
     setLoggedToday(true)
     setStreak((s) => s + 1)
@@ -227,6 +256,17 @@ export default function DashboardPage() {
       <Nav />
 
       <main className="mx-auto max-w-2xl px-4 py-8 pb-24">
+        {githubBanner === "connected" && (
+          <div className="mb-6 rounded-xl border border-ship/30 bg-ship/10 p-4 text-center">
+            <p className="text-sm text-ship font-medium">GitHub connected. Your commits will now verify your logs.</p>
+          </div>
+        )}
+        {githubBanner === "error" && (
+          <div className="mb-6 rounded-xl border border-red/30 bg-red/10 p-4 text-center">
+            <p className="text-sm text-red font-medium">GitHub connection failed. Try again.</p>
+          </div>
+        )}
+
         {isStreakLost && (
           <div className="mb-6 rounded-xl border border-red/30 bg-red/10 p-4 text-center">
             <p className="text-sm text-red font-medium">Streak broken at {streak} days. It happens. Start again today.</p>
@@ -250,6 +290,43 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        <div className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className={`h-5 w-5 ${githubConnected ? "text-ship" : "text-muted-foreground"}`} viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {githubConnected ? `GitHub: @${githubUsername}` : "Connect GitHub"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {githubConnected
+                    ? "Logs auto-verified against commit activity"
+                    : "Prove your builds with real commits"}
+                </p>
+              </div>
+            </div>
+            {githubConnected ? (
+              <button
+                onClick={async () => {
+                  await fetch("/api/github/disconnect", { method: "POST" })
+                  setGithubConnected(false)
+                  setGithubUsername("")
+                  setGithubActivity(null)
+                }}
+                className="text-xs text-muted-foreground hover:text-red transition-colors"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <Link href="/api/github/connect">
+                <button className="rounded-lg bg-ship px-4 py-1.5 text-xs font-medium text-background hover:bg-ship/90 transition-all">
+                  Connect
+                </button>
+              </Link>
+            )}
+          </div>
+        </div>
 
         {!activeBuild ? (
           <div className="text-center py-16">
@@ -292,8 +369,34 @@ export default function DashboardPage() {
                 <div className="mb-5">
                   <p className="text-xs text-muted-foreground mb-1.5">Yesterday</p>
                   <div className="rounded-lg border border-border bg-background p-3">
-                    <p className="text-sm text-foreground/80">{yesterdaysLog.content}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm text-foreground/80">{yesterdaysLog.content}</p>
+                      {yesterdaysLog.github_verified && (
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-ship/10 px-2 py-0.5 text-xs text-ship border border-ship/20">
+                          <Check className="h-3 w-3" /> Verified
+                        </span>
+                      )}
+                    </div>
+                    {yesterdaysLog.github_verified && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {yesterdaysLog.github_commits_count} commit{yesterdaysLog.github_commits_count !== 1 ? "s" : ""}
+                        {yesterdaysLog.github_repos_touched?.length > 0 && ` to ${yesterdaysLog.github_repos_touched.join(", ")}`}
+                      </p>
+                    )}
                   </div>
+                </div>
+              )}
+
+              {githubConnected && githubActivity && githubActivity.total_commits > 0 && (
+                <div className="mb-4 rounded-lg border border-ship/20 bg-ship/5 p-3">
+                  <p className="text-xs text-ship font-medium mb-1">GitHub activity today</p>
+                  {githubActivity.repos.slice(0, 3).map((repo) => (
+                    <p key={repo} className="text-xs text-muted-foreground">• {repo}</p>
+                  ))}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {githubActivity.total_commits} commit{githubActivity.total_commits !== 1 ? "s" : ""} total
+                    {githubActivity.languages.length > 0 && ` · ${githubActivity.languages.join(", ")}`}
+                  </p>
                 </div>
               )}
 
@@ -352,6 +455,11 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">{build.title}</span>
                         <span className="text-xs text-ship">Shipped</span>
+                        {build.status === "shipped" && allLogs.some(l => l.github_verified) && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-ship/10 px-1.5 py-0.5 text-xs text-ship">
+                            <Check className="h-3 w-3" /> Verified
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {build.category} · {build.shipped_at ? new Date(build.shipped_at).toLocaleDateString() : ""}
@@ -434,9 +542,22 @@ export default function DashboardPage() {
             </div>
             <h2 className="text-2xl font-bold text-foreground mb-2">{activeBuild.title} has shipped.</h2>
             <p className="text-muted-foreground">This Build is now frozen forever. Your reputation has increased.</p>
+            <Link href={`/api/builds/${activeBuild.id}/proof-card`} target="_blank">
+              <button className="mt-4 rounded-lg border border-ship px-6 py-2.5 text-sm font-medium text-ship hover:bg-ship/10 transition-all">
+                View Proof Card
+              </button>
+            </Link>
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent />
+    </Suspense>
   )
 }

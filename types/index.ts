@@ -17,6 +17,48 @@ export interface Log {
   content: string
   image_url: string | null
   created_at: string
+  github_verified: boolean
+  github_commits_count: number
+  github_repos_touched: string[]
+  github_languages: string[]
+}
+
+export interface GitHubConnection {
+  id: string
+  user_id: string
+  github_id: number
+  github_username: string
+  access_token: string
+  token_expires_at: string | null
+  is_active: boolean
+  connected_at: string
+  last_sync_at: string | null
+}
+
+export interface GitHubRepo {
+  id: string
+  user_id: string
+  github_repo_id: number
+  name: string
+  full_name: string
+  description: string | null
+  repo_created_at: string | null
+  repo_updated_at: string | null
+  pushed_at: string | null
+  language: string | null
+  stargazers_count: number
+  forks_count: number
+  is_private: boolean
+}
+
+export interface GitHubCommit {
+  id: string
+  repo_id: string
+  sha: string
+  message: string | null
+  author_date: string | null
+  committer_date: string | null
+  url: string | null
 }
 
 export interface Season {

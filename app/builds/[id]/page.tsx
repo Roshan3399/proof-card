@@ -25,6 +25,13 @@ export default function BuildDetailPage() {
   const [loggedToday, setLoggedToday] = useState(false)
   const [saving, setSaving] = useState(false)
   const [logError, setLogError] = useState<string | null>(null)
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [githubActivity, setGithubActivity] = useState<{
+    commits: { sha: string; message: string; url: string; repo: string }[]
+    repos: string[]
+    languages: string[]
+    total_commits: number
+  } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -54,6 +61,24 @@ export default function BuildDetailPage() {
         const todayLog = logList.find((log) => log.log_date === today || log.created_at?.startsWith(today))
         if (todayLog) setLoggedToday(true)
       }
+
+      const { data: githubConn } = await supabase
+        .from("github_connections")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (githubConn) {
+        setGithubConnected(true)
+        try {
+          const today = new Date().toISOString().split("T")[0]
+          const res = await fetch(`/api/github/activity?date=${today}`)
+          if (res.ok) {
+            const data = await res.json()
+            setGithubActivity(data)
+          }
+        } catch {}
+      }
+
       setLoading(false)
     }
     load()
@@ -67,10 +92,20 @@ export default function BuildDetailPage() {
     }
     setSaving(true)
     setLogError(null)
-    const { data, error } = await supabase.from("logs").insert({
+
+    const logPayload: Record<string, any> = {
       build_id: id,
       content: todaysGoal,
-    }).select().single()
+    }
+
+    if (githubActivity && githubActivity.total_commits > 0) {
+      logPayload.github_verified = true
+      logPayload.github_commits_count = githubActivity.total_commits
+      logPayload.github_repos_touched = githubActivity.repos
+      logPayload.github_languages = githubActivity.languages
+    }
+
+    const { data, error } = await supabase.from("logs").insert(logPayload).select().single()
     if (error) {
       setLogError(error.message)
       setSaving(false)
@@ -149,11 +184,29 @@ export default function BuildDetailPage() {
 
       <main className="mx-auto max-w-2xl px-4 py-8 pb-24">
         {build.status === "shipped" && (
-          <div className="mb-6 rounded-xl border border-ship/20 bg-ship/10 p-4 flex items-center gap-3">
-            <Check className="h-5 w-5 text-ship shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-foreground">This build has shipped.</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Frozen forever as proof of your work.</p>
+          <div className="mb-6 rounded-xl border border-ship/20 bg-ship/10 p-4">
+            <div className="flex items-center gap-3">
+              <Check className="h-5 w-5 text-ship shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">This build has shipped.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Frozen forever as proof of your work.</p>
+              </div>
+            </div>
+            {logs.some((l) => l.github_verified) && (
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground border-t border-ship/20 pt-3">
+                <span>Verified logs: {logs.filter((l) => l.github_verified).length}/{logs.length}</span>
+                <span>Total commits: {logs.reduce((s, l) => s + (l.github_commits_count ?? 0), 0)}</span>
+                {[...new Set(logs.flatMap((l) => l.github_languages ?? []))].length > 0 && (
+                  <span>Languages: {[...new Set(logs.flatMap((l) => l.github_languages ?? []))].slice(0, 5).join(", ")}</span>
+                )}
+              </div>
+            )}
+            <div className="mt-3">
+              <Link href={`/api/builds/${id}/proof-card`} target="_blank">
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-ship px-3 py-1.5 text-xs font-medium text-ship hover:bg-ship/10 transition-all">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg> View Proof Card
+                </button>
+              </Link>
             </div>
           </div>
         )}
@@ -215,12 +268,32 @@ export default function BuildDetailPage() {
           ) : (
             logs.map((log) => (
               <div key={log.id} className="rounded-lg border border-border bg-card p-4">
-                <p className="text-sm text-foreground/80 whitespace-pre-wrap">{log.content}</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {new Date(log.created_at).toLocaleDateString("en-US", {
-                    weekday: "short", month: "short", day: "numeric",
-                  })}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap">{log.content}</p>
+                  {log.github_verified && (
+                    <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-ship/10 px-2 py-0.5 text-xs text-ship border border-ship/20">
+                      <Check className="h-3 w-3" /> Verified
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                  <span>
+                    {new Date(log.created_at).toLocaleDateString("en-US", {
+                      weekday: "short", month: "short", day: "numeric",
+                    })}
+                  </span>
+                  {log.github_verified && (
+                    <span>
+                      {log.github_commits_count} commit{log.github_commits_count !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                {log.github_verified && log.github_repos_touched?.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {log.github_repos_touched.join(", ")}
+                    {log.github_languages?.length > 0 && ` · ${log.github_languages.join(", ")}`}
+                  </p>
+                )}
               </div>
             ))
           )}

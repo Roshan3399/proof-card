@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS logs (
   content TEXT NOT NULL,
   image_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  github_verified BOOLEAN DEFAULT FALSE,
+  github_commits_count INTEGER DEFAULT 0,
+  github_repos_touched TEXT[] DEFAULT '{}',
+  github_languages TEXT[] DEFAULT '{}',
   UNIQUE (build_id, log_date)
 );
 
@@ -64,6 +68,49 @@ CREATE TABLE IF NOT EXISTS endorsements (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- GitHub connections
+CREATE TABLE IF NOT EXISTS github_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  github_id BIGINT NOT NULL UNIQUE,
+  github_username VARCHAR(64) NOT NULL,
+  access_token TEXT NOT NULL,
+  token_expires_at TIMESTAMPTZ,
+  is_active BOOLEAN DEFAULT TRUE,
+  connected_at TIMESTAMPTZ DEFAULT NOW(),
+  last_sync_at TIMESTAMPTZ
+);
+
+-- GitHub repos
+CREATE TABLE IF NOT EXISTS github_repos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  github_repo_id BIGINT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  description TEXT,
+  repo_created_at TIMESTAMPTZ,
+  repo_updated_at TIMESTAMPTZ,
+  pushed_at TIMESTAMPTZ,
+  language VARCHAR(64),
+  stargazers_count INTEGER DEFAULT 0,
+  forks_count INTEGER DEFAULT 0,
+  is_private BOOLEAN DEFAULT FALSE,
+  UNIQUE (user_id, github_repo_id)
+);
+
+-- GitHub commits
+CREATE TABLE IF NOT EXISTS github_commits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  repo_id UUID NOT NULL REFERENCES github_repos(id) ON DELETE CASCADE,
+  sha VARCHAR(40) NOT NULL,
+  message TEXT,
+  author_date TIMESTAMPTZ,
+  committer_date TIMESTAMPTZ,
+  url TEXT,
+  UNIQUE (repo_id, sha)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_builds_user_id ON builds(user_id);
 CREATE INDEX IF NOT EXISTS idx_builds_season_id ON builds(season_id);
@@ -71,6 +118,10 @@ CREATE INDEX IF NOT EXISTS idx_builds_status ON builds(status);
 CREATE INDEX IF NOT EXISTS idx_logs_build_id ON logs(build_id);
 CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_cohorts_season_id ON cohorts(season_id);
+CREATE INDEX IF NOT EXISTS idx_github_connections_user_id ON github_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_github_repos_user_id ON github_repos(user_id);
+CREATE INDEX IF NOT EXISTS idx_github_commits_repo_id ON github_commits(repo_id);
+CREATE INDEX IF NOT EXISTS idx_github_commits_author_date ON github_commits(author_date);
 
 
 -- Row Level Security
